@@ -6,8 +6,8 @@ $rgName = "rosalio-onboarding"
 $location = "East US"
 $vnetName = "foxhouse"
 $subnetName = "foxsub01"
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "<subnetAddressPrefix>"
-$vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "<vnetAddressPrefix>" -Subnet $subnetConfig
+$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24"
+$vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
 
 
 #Deploy a windows server vm as the Domain Controller 
