@@ -22,6 +22,8 @@ $vm = Set-AzVMOSDisk -VM $vm -CreateOption FromImage -DiskSizeInGB 64
 New-AzVM -ResourceGroupName $rgName -Location $location -VM $vm
 
 #Configure Active Directory Domain Services on the VM
+Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+Install-ADDSForest -DomainName "fox.local" -SafeModeAdministratorPassword (ConvertTo-SecureString -String 'foxlocal' -AsPlainText -Force) -Force:$true
 
 
 # Script to deploy  Django App VM & Variables for Django App VM
@@ -46,6 +48,14 @@ $djangoVmConfig = Set-AzVMOSDisk -VM $djangoVmConfig -CreateOption FromImage -Di
 New-AzVM -ResourceGroupName $rgName -Location $location -VM $djangoVmConfig
 
 
+
+
+# Create a Key Vault
+$keyVaultName = "fox-keyvault"
+$keyVault = New-AzKeyVault -VaultName $keyVaultName -ResourceGroupName $rgName -Location $location
+# Store the Django admin password in the Key Vault
+$secretValue = ConvertTo-SecureString 'fox' -AsPlainText -Force
+$secret = Set-AzKeyVaultSecret -VaultName $keyVaultName -Name 'DjangoAdminPassword' -SecretValue $secretValue
 
 
 
