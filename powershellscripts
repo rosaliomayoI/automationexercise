@@ -1,0 +1,22 @@
+#Setup and configuration using Powershell 
+
+
+#Create and configure the Virtual Network and subnet
+$rgName = "rosalio-onboarding"
+$location = "East US"
+$vnetName = "foxhouse"
+$subnetName = "foxsub01"
+$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "<subnetAddressPrefix>"
+$vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "<vnetAddressPrefix>" -Subnet $subnetConfig
+
+
+#Deploy a windows server vm as the Domain Controller 
+$vmName = "foxvm01"
+$pip = New-AzPublicIpAddress -Name "$vmName-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Dynamic
+$nic = New-AzNetworkInterface -Name "$vmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $vnet.Subnets[0].Id -PublicIpAddressId $pip.Id
+$vmConfig = New-AzVMConfig -VMName $vmName -VMSize "Standard_DS2_v2"
+$vm = Set-AzVMOperatingSystem -VM $vmConfig -Windows -ComputerName $vmName -Credential (Get-Credential) -ProvisionVMAgent -EnableAutoUpdate
+$vm = Set-AzVMSourceImage -VM $vm -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
+$vm = Add-AzVMNetworkInterface -VM $vm -Id $nic.Id
+$vm = Set-AzVMOSDisk -VM $vm -CreateOption FromImage -DiskSizeInGB 127
+New-AzVM -ResourceGroupName $rgName -Location $location -VM $vm
