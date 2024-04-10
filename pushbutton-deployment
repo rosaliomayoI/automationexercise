@@ -37,7 +37,7 @@ $dcVmConfig = Set-AzVMOSDisk -VM $dcVmConfig -CreateOption FromImage -DiskSizeIn
 $dcVm = New-AzVM -ResourceGroupName $rgName -Location $location -VM $dcVmConfig
 
 # Install AD DS role and promote to Domain Controller
-Invoke-AzVMRunCommand -ResourceGroupName $rgName -VMName $domainControllerVmName -CommandId 'RunPowerShellScript' -ScriptPath 'PathToADDSInstallationAndPromotionScript.ps1' -Parameter @{"safeModeAdministratorPassword"=$dsrmPassword}
+Invoke-AzVMRunCommand -ResourceGroupName $rgName -VMName $domainControllerVmName -CommandId 'RunPowerShellScript' -ScriptPath '~/Desktop/scripts/installadds.ps1' -Parameter @{"safeModeAdministratorPassword"=$dsrmPassword}
 
 # Django VM configuration (Ubuntu)
 $djangoNic = New-AzNetworkInterface -Name "$djangoVmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id
