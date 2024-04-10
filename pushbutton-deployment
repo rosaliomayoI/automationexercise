@@ -50,5 +50,11 @@ $djangoVmConfig = Set-AzVMOSDisk -VM $djangoVmConfig -CreateOption FromImage -Di
 # Deploy the Django VM
 $djangoVm = New-AzVM -ResourceGroupName $rgName -Location $location -VM $djangoVmConfig
 
-# Output to indicate configuration is complete
-Write-Output "VM configurations are set. Domain Controller and Django VMs are deployed."
+# Create NSG rule to allow inbound traffic from Rule4's egress IP (assuming HTTPS traffic on port 443)
+$httpsRule = New-AzNetworkSecurityRuleConfig -Name "AllowHTTPSFromRule4EgressIP" -Description "Allow inbound HTTPS traffic from Rule4's egress IP" -Access "Allow" -Protocol "Tcp" -Direction "Inbound" -Priority 100 -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange 443
+
+# Apply the NSG rule to the appropriate NSG (associated with the subnet)
+Set-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -SecurityRules $httpsRule
+
+# Associate the NSG with the subnet containing the Django VM
+Set-AzVirtualNetworkSubnetConfig -VirtualNetwork $vnet -Name $subnetName -AddressPrefix "10.
