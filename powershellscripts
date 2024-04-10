@@ -21,7 +21,7 @@ $vm = Add-AzVMNetworkInterface -VM $vm -Id $nic.Id
 $vm = Set-AzVMOSDisk -VM $vm -CreateOption FromImage -DiskSizeInGB 64
 New-AzVM -ResourceGroupName $rgName -Location $location -VM $vm
 
-#Configure Active Directory Domain Services on the VM
+#Configure Active Directory Domain Services on the VM once deployed.
 Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
 Install-ADDSForest -DomainName "fox.local" -SafeModeAdministratorPassword (ConvertTo-SecureString -String 'foxlocal' -AsPlainText -Force) -Force:$true
 
@@ -33,17 +33,13 @@ $djangoNic = New-AzNetworkInterface -Name "$djangoVmName-nic" -ResourceGroupName
 $djangoVmConfig = New-AzVMConfig -VMName $djangoVmName -VMSize "Standard_DS2_v2"
 $adminUsername = "fox"
 $adminPassword = ConvertTo-SecureString 'fox' -AsPlainText -Force
-
 # Set the operating system and image for the Django VM
 $djangoVmConfig = Set-AzVMOperatingSystem -VM $djangoVmConfig -Linux -ComputerName $djangoVmName -Credential (New-Object System.Management.Automation.PSCredential ($adminUsername, $adminPassword))
 $djangoVmConfig = Set-AzVMSourceImage -VM $djangoVmConfig -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "18.04-LTS" -Version "latest"
-
 # Add network interface
 $djangoVmConfig = Add-AzVMNetworkInterface -VM $djangoVmConfig -Id $djangoNic.Id
-
 # Set the OS disk
 $djangoVmConfig = Set-AzVMOSDisk -VM $djangoVmConfig -CreateOption FromImage -DiskSizeInGB 64 -Caching "ReadWrite"
-
 # Create the VM
 New-AzVM -ResourceGroupName $rgName -Location $location -VM $djangoVmConfig
 
