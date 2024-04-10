@@ -1,44 +1,54 @@
 param(
-    [string]$rgName = "DefaultResourceGroup",
-    [string]$location = "East US",
-    [string]$vnetName = "DefaultVNet",
-    [string]$subnetName = "DefaultSubnet",
-    [string]$nsgName = "DefaultNSG",
-    [string]$rule4EgressIP = "0.0.0.0",  # Replace with the actual egress IP
-    [string]$vmName = "DefaultVM",
-    [string]$domainControllerVmName = "dc01",
-    [string]$djangoVmName = "django01",
-    [string]$keyVaultName = "DefaultKeyVault",
-    [string]$adminUsername = "adminUser",
-    [string]$adminPassword = "adminPassword",  # Consider fetching from a secure source like Azure Key Vault
-    [string]$domainName = "example.local",
-    [string]$safeModeAdminPassword = "SafeModePassword"  # Consider fetching from a secure source
+    [string]$rgName,
+    [string]$location,
+    [string]$vnetName,
+    [string]$subnetName,
+    [string]$nsgName,
+    [string]$rule4EgressIP,
+    [string]$domainControllerVmName,
+    [string]$djangoVmName,
+    [string]$keyVaultName,
+    [string]$domainName = "example.local"
 )
 
+# Retrieve credentials from Azure Key Vault for VM admin
+$adminUsernameSecret = (Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "adminUsername").SecretValueText
+$adminPasswordSecret = (Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "adminPassword").SecretValue
+$adminPassword = $adminPasswordSecret | ConvertTo-SecureString -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential($adminUsernameSecret, $adminPassword)
+
+# Retrieve credentials from Azure Key Vault for Safe Mode (DSRM)
+$dsrmPasswordSecret = (Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "dsrmPassword").SecretValue
+$dsrmPassword = $dsrmPasswordSecret | ConvertTo-SecureString -AsPlainText -Force
+
 # Network configuration
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24"
-$vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
+$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName
+$subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet
 
-# Create NSG and rules
-$nsg = New-AzNetworkSecurityGroup -ResourceGroupName $rgName -Location $location -Name $nsgName
-Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name "AllowHTTPS" -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
-$nsg | Set-AzNetworkSecurityGroup
+# Domain Controller VM configuration
+$dcNic = New-AzNetworkInterface -Name "$domainControllerVmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id
+$dcVmConfig = New-AzVMConfig -VMName $domainControllerVmName -VMSize "Standard_DS2_v2"
+$dcVmConfig = Set-AzVMOperatingSystem -VM $dcVmConfig -Windows -ComputerName $domainControllerVmName -Credential $cred -ProvisionVMAgent -EnableAutoUpdate
+$dcVmConfig = Set-AzVMSourceImage -VM $dcVmConfig -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
+$dcVmConfig = Add-AzVMNetworkInterface -VM $dcVmConfig -Id $dcNic.Id
+$dcVmConfig = Set-AzVMOSDisk -VM $dcVmConfig -CreateOption FromImage -DiskSizeInGB 128
 
-# Update subnet with NSG
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24" -NetworkSecurityGroup $nsg
-$vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet
+# Deploy the Domain Controller VM
+$dcVm = New-AzVM -ResourceGroupName $rgName -Location $location -VM $dcVmConfig
 
-# Deploy Domain Controller VM
-$vmConfig = New-AzVMConfig -VMName $domainControllerVmName -VMSize "Standard_DS2_v2"
-# Add other VM configuration here...
+# Install AD DS role and promote to Domain Controller
+Invoke-AzVMRunCommand -ResourceGroupName $rgName -VMName $domainControllerVmName -CommandId 'RunPowerShellScript' -ScriptPath 'PathToADDSInstallationAndPromotionScript.ps1' -Parameter @{"safeModeAdministratorPassword"=$dsrmPassword}
 
-# Deploy Django VM
+# Django VM configuration (Ubuntu)
+$djangoNic = New-AzNetworkInterface -Name "$djangoVmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id
 $djangoVmConfig = New-AzVMConfig -VMName $djangoVmName -VMSize "Standard_DS2_v2"
-# Add other VM configuration here...
+$djangoVmConfig = Set-AzVMOperatingSystem -VM $djangoVmConfig -Linux -ComputerName $djangoVmName -Credential $cred -DisablePasswordAuthentication
+$djangoVmConfig = Set-AzVMSourceImage -VM $djangoVmConfig -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "18.04-LTS" -Version "latest"
+$djangoVmConfig = Add-AzVMNetworkInterface -VM $djangoVmConfig -Id $djangoNic.Id
+$djangoVmConfig = Set-AzVMOSDisk -VM $djangoVmConfig -CreateOption FromImage -DiskSizeInGB 128
 
-# Key Vault for storing secrets
-$keyVault = New-AzKeyVault -VaultName $keyVaultName -ResourceGroupName $rgName -Location $location
-Set-AzKeyVaultSecret -VaultName $keyVaultName -Name 'AdminPassword' -SecretValue (ConvertTo-SecureString -String $adminPassword -AsPlainText -Force)
+# Deploy the Django VM
+$djangoVm = New-AzVM -ResourceGroupName $rgName -Location $location -VM $djangoVmConfig
 
-# Output completion message
-Write-Output "Resources created successfully with specified parameters"
+# Output to indicate configuration is complete
+Write-Output "VM configurations are set. Domain Controller and Django VMs are deployed."
