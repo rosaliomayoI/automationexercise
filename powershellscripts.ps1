@@ -80,7 +80,6 @@ New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDC
 
 
 # Script to deploy  Django App VM & Variables for Django App VM
-# Variables (replace these with your actual values)
 $rgName = "rosalio-onboarding"
 $location = "East US"
 $vmNameDC = "foxDC"
