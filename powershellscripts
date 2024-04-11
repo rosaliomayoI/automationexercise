@@ -137,11 +137,29 @@ Set-AzVMCustomScriptExtension -ResourceGroupName $rgName -VMName $vmNameDjango -
 
 
 # Create a Key Vault
-$keyVaultName = "fox-keyvault"
-$keyVault = New-AzKeyVault -VaultName $keyVaultName -ResourceGroupName $rgName -Location $location
-# Store the Django admin password in the Key Vault
-$secretValue = ConvertTo-SecureString 'fox' -AsPlainText -Force
-$secret = Set-AzKeyVaultSecret -VaultName $keyVaultName -Name 'DjangoAdminPassword' -SecretValue $secretValue
+# Variables
+$rgName = "rosalio-onboarding"  #resource group name
+$location = "East US"  #location
+$vaultName = "foxkeyvault"  # Name for the Key Vault
+$secretName = "foxesarecute"  # Name of the secret to store
+$secretValue = "YourSecretPassword"  # The password or secret value you want to store
+
+# Create or check for existing resource group
+$resourceGroup = Get-AzResourceGroup -Name $rgName -ErrorAction SilentlyContinue
+if (-not $resourceGroup) {
+    New-AzResourceGroup -Name $rgName -Location $location
+}
+
+# Create the Key Vault
+$vault = New-AzKeyVault -Name $vaultName -ResourceGroupName $rgName -Location $location -Sku Standard
+
+# Store a secret in the Key Vault
+$secureSecretValue = ConvertTo-SecureString $secretValue -AsPlainText -Force
+Set-AzKeyVaultSecret -VaultName $vaultName -Name $secretName -SecretValue $secureSecretValue
+
+# Output the details of the created Key Vault
+Write-Output "Key Vault '$vaultName' created in resource group '$rgName'."
+Write-Output "Secret '$secretName' added to Key Vault '$vaultName'."
 
 
 
