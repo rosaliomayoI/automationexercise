@@ -1,0 +1,10 @@
+# PowerShell commands to promote the VM to a Domain Controller
+Import-Module ServerManager
+Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+
+Import-Module ADDSDeployment
+Install-ADDSForest `
+    -DomainName "fox.local" `
+    -InstallDNS `
+    -Force:$true `
+    -SafeModeAdministratorPassword (ConvertTo-SecureString "Fox.local777@" -AsPlainText -Force)
