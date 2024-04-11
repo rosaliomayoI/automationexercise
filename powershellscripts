@@ -3,69 +3,135 @@
 
 #Create and configure the Virtual Network and Network Security Groups
 # Variables
+$vmNameDC = "foxDC"
 $rgName = "rosalio-onboarding"
 $location = "East US"
-$vnetName = "foxhouse"
-$subnetName = "foxsub01"
-$nsgName = "foxNSG"
-$rule4EgressIP = "<IP>" 
+$vnetName = "foxhouseVNet"
+$subnetName = "foxhouseSubnet"
+$nsgName = "foxhouseNSG"
 
 
 # Create and configure the Virtual Network and subnet
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24"
+
+$rgName = "rosalio-onboarding"
+$location = "East US"
+$vnetName = "foxhouseVNet"
+$subnetName = "foxhouseSubnet"
+# Create Virtual Network and Subnet
+$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
 $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
-# Create a Network Security Group (NSG)
-$nsg = New-AzNetworkSecurityGroup -ResourceGroupName $rgName -Location $location -Name $nsgName
-# Add NSG rule to allow traffic from Rule4's egress IP only
+$nsgName = "foxhouseNSG"
 $ruleName = "AllowRule4Egress"
-$priority = 100
-$portRange = "443"  # Only HTTPS traffic
-Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority $priority -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange $portRange
-# Update the NSG
+$rule4EgressIP = "65.140.106.2"  # Rule4's egress IP
+# Create NSG and allow inbound rule for Rule4's egress IP
+$nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
+Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
 $nsg | Set-AzNetworkSecurityGroup
-# Update subnet configuration with the NSG
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24" -NetworkSecurityGroup $nsg
-# Integrate the updated subnet configuration into the virtual network
-$vnet.Subnets[0] = $subnetConfig
-# Update the Virtual Network with the new subnet configuration
-$vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet
-# Output the result
-Write-Output "Virtual Network, NSG, and NSG rule created successfully."
+
 
 
 
 #Deploy a windows server vm as the Domain Controller 
-$vmName = "foxvm01"
-$pip = New-AzPublicIpAddress -Name "$vmName-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Dynamic
-$nic = New-AzNetworkInterface -Name "$vmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $vnet.Subnets[0].Id -PublicIpAddressId $pip.Id
-$vmConfig = New-AzVMConfig -VMName $vmName -VMSize "Standard_DS2_v2"
-$vm = Set-AzVMOperatingSystem -VM $vmConfig -Windows -ComputerName $vmName -Credential (Get-Credential) -ProvisionVMAgent -EnableAutoUpdate
-$vm = Set-AzVMSourceImage -VM $vm -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
-$vm = Add-AzVMNetworkInterface -VM $vm -Id $nic.Id
-$vm = Set-AzVMOSDisk -VM $vm -CreateOption FromImage -DiskSizeInGB 64
-New-AzVM -ResourceGroupName $rgName -Location $location -VM $vm
 
-#Configure Active Directory Domain Services on the VM once deployed.
-Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
-Install-ADDSForest -DomainName "fox.local" -SafeModeAdministratorPassword (ConvertTo-SecureString -String 'foxlocal' -AsPlainText -Force) -Force:$true
+# Variables
+$vmNameDC = "foxDC"
+$rgName = "rosalio-onboarding"
+$location = "East US"
+$vnetName = "foxhouseVNet"
+$subnetName = "foxhouseSubnet"
+$nsgName = "foxhouseNSG"
+
+#Create the windows VM
+# Create a public IP with static allocation
+$dcPip = New-AzPublicIpAddress -Name "$vmNameDC-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Static
+
+# Fetch or create the virtual network and subnet
+$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName
+if (-not $vnet) {
+    $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16"
+    $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
+    $vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet.AddSubnet($subnetConfig)
+}
+$subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet
+
+# Fetch or create the network security group
+$nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName
+if (-not $nsg) {
+    $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
+    $ruleName = "AllowRule4Egress"
+    $rule4EgressIP = "65.140.106.2"
+    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
+    $nsg | Set-AzNetworkSecurityGroup
+}
+
+# Create a network interface for the VM
+$dcNic = New-AzNetworkInterface -Name "$vmNameDC-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id -PublicIpAddressId $dcPip.Id -NetworkSecurityGroupId $nsg.Id
+
+# VM configuration for Domain Controller
+$vmConfigDC = New-AzVMConfig -VMName $vmNameDC -VMSize "Standard_DS2_v2"
+$vmConfigDC = Set-AzVMOperatingSystem -VM $vmConfigDC -Windows -ComputerName $vmNameDC -Credential (Get-Credential) -ProvisionVMAgent -EnableAutoUpdate
+$vmConfigDC = Set-AzVMSourceImage -VM $vmConfigDC -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
+$vmConfigDC = Add-AzVMNetworkInterface -VM $vmConfigDC -Id $dcNic.Id
+$vmConfigDC = Set-AzVMOSDisk -VM $vmConfigDC -CreateOption FromImage -DiskSizeInGB 127
+# Create the VM
+New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDC
+
+
 
 
 # Script to deploy  Django App VM & Variables for Django App VM
-$djangoVmName = "foxweb01"
-$djangoPip = New-AzPublicIpAddress -Name "$djangoVmName-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Dynamic
-$djangoNic = New-AzNetworkInterface -Name "$djangoVmName-nic" -ResourceGroupName $rgName -Location $location -SubnetId $vnet.Subnets[0].Id -PublicIpAddressId $djangoPip.Id
-$djangoVmConfig = New-AzVMConfig -VMName $djangoVmName -VMSize "Standard_DS2_v2"
-$adminUsername = "fox"
-$adminPassword = ConvertTo-SecureString 'fox' -AsPlainText -Force
-# Set the operating system and image for the Django VM
-$djangoVmConfig = Set-AzVMOperatingSystem -VM $djangoVmConfig -Linux -ComputerName $djangoVmName -Credential (New-Object System.Management.Automation.PSCredential ($adminUsername, $adminPassword))
-$djangoVmConfig = Set-AzVMSourceImage -VM $djangoVmConfig -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "18.04-LTS" -Version "latest"
-# Add network interface
-$djangoVmConfig = Add-AzVMNetworkInterface -VM $djangoVmConfig -Id $djangoNic.Id
-# Set the OS disk
-$djangoVmConfig = Set-AzVMOSDisk -VM $djangoVmConfig -CreateOption FromImage -DiskSizeInGB 64 -Caching "ReadWrite"
-# Create the VM
-New-AzVM -ResourceGroupName $rgName -Location $location -VM $djangoVmConfig
+# Variables (replace these with your actual values)
+$rgName = "rosalio-onboarding"
+$location = "East US"
+$vmNameDC = "foxDC"
+$vmNameDjango = "djangoVM"
+$vnetName = "foxhouseVNET"
+$subnetName = "foxhouseSubnet"
+$nsgName = "foxhouseNSG"
+$rule4EgressIP = "65.140.106.2"  # IP address to allow through NSG
+
+# Create a public IP with static allocation for the Django VM
+$djangoPip = New-AzPublicIpAddress -Name "$vmNameDjango-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Static
+
+# Fetch or create the virtual network and subnet
+$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName
+if (-not $vnet) {
+    $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16"
+    $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
+    $vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet.AddSubnet($subnetConfig)
+}
+$subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet
+
+# Fetch or create the network security group
+$nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName
+if (-not $nsg) {
+    $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
+    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name "AllowRule4Egress" -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443,8000"
+    $nsg | Set-AzNetworkSecurityGroup
+}
+
+# Create a network interface for the Django VM
+$djangoNic = New-AzNetworkInterface -Name "$vmNameDjango-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id -PublicIpAddressId $djangoPip.Id -NetworkSecurityGroupId $nsg.Id
+
+# VM configuration for Django Linux VM
+$vmConfigDjango = New-AzVMConfig -VMName $vmNameDjango -VMSize "Standard_DS2_v2"
+$vmConfigDjango = Set-AzVMOperatingSystem -VM $vmConfigDjango -Linux -ComputerName $vmNameDjango -Credential (Get-Credential)
+$vmConfigDjango = Set-AzVMSourceImage -VM $vmConfigDjango -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "18.04-LTS" -Version "latest"
+$vmConfigDjango = Add-AzVMNetworkInterface -VM $vmConfigDjango -Id $djangoNic.Id
+$vmConfigDjango = Set-AzVMOSDisk -VM $vmConfigDjango -CreateOption FromImage -DiskSizeInGB 127
+
+# Create the Django Linux VM
+$vmDjango = New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDjango
+
+# Custom script extension to install and configure Django and integrate with Domain Controller
+$customScriptSettings = @{
+    "fileUris" = ["<URL to your Django and AD integration setup script>"]
+    "commandToExecute" = "bash <name of your setup script>.sh"
+}
+
+Set-AzVMCustomScriptExtension -ResourceGroupName $rgName -VMName $vmNameDjango -Name "setupDjangoADIntegration" -Location $location -Setting $customScriptSettings
+
+
 
 
 
