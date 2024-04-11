@@ -8,7 +8,8 @@ $location = "East US"
 $vnetName = "foxhouse"
 $subnetName = "foxsub01"
 $nsgName = "foxNSG"
-$rule4EgressIP = "65.140.106.2" 
+$rule4EgressIP = "<IP>" 
+
 
 # Create and configure the Virtual Network and subnet
 $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24"
@@ -17,17 +18,20 @@ $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Locatio
 $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $rgName -Location $location -Name $nsgName
 # Add NSG rule to allow traffic from Rule4's egress IP only
 $ruleName = "AllowRule4Egress"
-$priority = 100 
+$priority = 100
 $portRange = "443"  # Only HTTPS traffic
 Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority $priority -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange $portRange
 # Update the NSG
 $nsg | Set-AzNetworkSecurityGroup
 # Update subnet configuration with the NSG
 $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.0.0/24" -NetworkSecurityGroup $nsg
+# Integrate the updated subnet configuration into the virtual network
+$vnet.Subnets[0] = $subnetConfig
 # Update the Virtual Network with the new subnet configuration
 $vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet
 # Output the result
-Write-Output "Virtual Network, NSG, and NSG rule created successfully"
+Write-Output "Virtual Network, NSG, and NSG rule created successfully."
+
 
 
 #Deploy a windows server vm as the Domain Controller 
