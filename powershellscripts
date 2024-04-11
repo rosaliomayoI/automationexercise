@@ -140,7 +140,7 @@ Set-AzVMCustomScriptExtension -ResourceGroupName $rgName -VMName $vmNameDjango -
 # Variables
 $rgName = "rosalio-onboarding"  #resource group name
 $location = "East US"  #location
-$vaultName = "foxkeyvault"  # Name for the Key Vault
+$vaultName = "foxkeyvault222"  # Name for the Key Vault
 $secretName = "foxesarecute"  # Name of the secret to store
 $secretValue = "YourSecretPassword"  # The password or secret value you want to store
 
