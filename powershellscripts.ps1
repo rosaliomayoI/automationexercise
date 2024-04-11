@@ -31,6 +31,12 @@ $nsg | Set-AzNetworkSecurityGroup
 
 
 
+
+
+
+
+
+
 #Deploy a windows server vm as the Domain Controller 
 
 #Create the windows VM
@@ -102,6 +108,22 @@ Set-AzVMCustomScriptExtension -ResourceGroupName $rgName `
                               -Location $location `
                               -FileUri $scriptUrl `
                               -ArgumentList "-vaultName $vaultName", "-secretName $secretName", "-domainName  foxeslocal.com"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
