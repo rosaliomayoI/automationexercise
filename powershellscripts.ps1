@@ -33,15 +33,17 @@ $nsg | Set-AzNetworkSecurityGroup
 
 #Deploy a windows server vm as the Domain Controller 
 
-# Variables
+#Create the windows VM
+ Variables
 $vmNameDC = "foxDC"
 $rgName = "rosalio-onboarding"
 $location = "East US"
 $vnetName = "foxhouseVNet"
 $subnetName = "foxhouseSubnet"
 $nsgName = "foxhouseNSG"
+$vaultName = "foxfly125"  # Replace with your actual Key Vault name
+$secretName = "foxesarecute"  # The secret in the Key Vault
 
-#Create the windows VM
 # Create a public IP with static allocation
 $dcPip = New-AzPublicIpAddress -Name "$vmNameDC-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Static
 
@@ -58,9 +60,7 @@ $subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vn
 $nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName
 if (-not $nsg) {
     $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
-    $ruleName = "AllowRule4Egress"
-    $rule4EgressIP = "65.140.106.2"
-    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
+    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name "AllowRule4Egress" -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix "65.140.106.2" -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
     $nsg | Set-AzNetworkSecurityGroup
 }
 
@@ -73,9 +73,35 @@ $vmConfigDC = Set-AzVMOperatingSystem -VM $vmConfigDC -Windows -ComputerName $vm
 $vmConfigDC = Set-AzVMSourceImage -VM $vmConfigDC -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
 $vmConfigDC = Add-AzVMNetworkInterface -VM $vmConfigDC -Id $dcNic.Id
 $vmConfigDC = Set-AzVMOSDisk -VM $vmConfigDC -CreateOption FromImage -DiskSizeInGB 127
-# Create the VM
-New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDC
 
+# Create the VM
+$vmDC = New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDC
+Write-Host "VM created successfully"
+
+# Fetch the VM to see if it's created and has an identity
+$vm = Get-AzVM -ResourceGroupName $rgName -Name $vmNameDC
+if ($vm -and $vm.Identity) {
+    $vmIdentity = $vm.Identity.PrincipalId
+    Write-Host "VM Identity PrincipalId: $vmIdentity"
+} else {
+    Write-Host "VM Identity not found, cannot set Key Vault access policy"
+    exit
+}
+
+# Set the Key Vault access policy for the Managed Identity 
+Set-AzKeyVaultAccessPolicy -VaultName $vaultName -ObjectId $vmIdentity -PermissionsToSecrets get
+Write-Host "Key Vault access policy set for the Managed Identity"
+
+# Define the URL of the script hosted on GitHub
+$scriptUrl = "https://raw.githubusercontent.com/rosaliomayoI/automationexercise/main/promotetodc.ps1"
+
+# Custom Script Extension to promote to Domain Controller
+Set-AzVMCustomScriptExtension -ResourceGroupName $rgName `
+                              -VMName $vmNameDC `
+                              -Name "PromoteToDC" `
+                              -Location $location `
+                              -FileUri $scriptUrl `
+                              -ArgumentList "-vaultName $vaultName", "-secretName $secretName", "-domainName  foxeslocal.com"
 
 
 
@@ -124,8 +150,8 @@ $vmDjango = New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfi
 
 # Custom script extension to install and configure Django and integrate with Domain Controller
 $customScriptSettings = @{
-    "fileUris" = ["<URL to your Django and AD integration setup script>"]
-    "commandToExecute" = "bash <name of your setup script>.sh"
+    "fileUris" = ["https://raw.githubusercontent.com/rosaliomayoI/automationexercise/main/djangoapp.sh"]
+    "commandToExecute" = "bash djangoapp.sh"
 }
 
 Set-AzVMCustomScriptExtension -ResourceGroupName $rgName -VMName $vmNameDjango -Name "setupDjangoADIntegration" -Location $location -Setting $customScriptSettings
