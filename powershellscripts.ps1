@@ -22,7 +22,7 @@ $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefi
 $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
 $nsgName = "foxhouseNSG"
 $ruleName = "AllowRule4Egress"
-$rule4EgressIP = "IP"  #egress IP
+$rule4EgressIP = "65.140.106.2"  #egress IP
 # Create NSG and allow inbound rule for Rule4's egress IP
 $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
 Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
