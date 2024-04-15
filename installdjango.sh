@@ -1,30 +1,26 @@
 #!/bin/bash
-# Update System
+# Install Python and pip
 sudo apt-get update
-sudo apt-get upgrade -y
+sudo apt-get install -y python3-pip
 
-# Install Python and Pip
-sudo apt-get install python3-pip python3-dev libpq-dev -y
+# Install Django and django-auth-ldap
+pip3 install django django-auth-ldap
 
-# Install Virtualenv
-sudo pip3 install virtualenv
-
-# Create a Virtual Environment and Activate It
-virtualenv djangovenv
-source djangovenv/bin/activate
-
-# Install Django
-pip install django
-
-# Create a new Django project
+# Set up a new Django project
 django-admin startproject myproject
-
-# Change to the project directory
 cd myproject
 
-# Run Django migrations to initialize your environment
-python manage.py migrate
+# Generate settings segment for LDAP (this is a simplified example)
+cat <<EOF >> myproject/settings.py
 
-# OPTIONAL: Setup Django to run on startup
-echo "@reboot root /home/$USER/djangovenv/bin/python /home/$USER/myproject/manage.py runserver 0.0.0.0:8000" | sudo tee -a /etc/crontab > /dev/null
+# LDAP settings
+import ldap
+from django_auth_ldap.config import LDAPSearch
 
+AUTH_LDAP_SERVER_URI = 'ldap://your_domain_controller_ip'
+
+AUTH_LDAP_BIND_DN = 'cn=read-only-admin,dc=example,dc=com'
+AUTH_LDAP_BIND_PASSWORD = 'yourpassword'
+AUTH_LDAP_USER_SEARCH = LDAPSearch('ou=users,dc=example,dc=com',
+                                   ldap.SCOPE_SUBTREE, '(uid=%(user)s)')
+EOF
