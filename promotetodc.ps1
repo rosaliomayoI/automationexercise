@@ -1,35 +1,19 @@
-# Import required module
+# Install Active Directory Domain Services Role
+Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+
+# Import ADDSDeployment module
 Import-Module ADDSDeployment
 
-# Define domain administrator credentials
-$domainAdminUsername = "Administrator"
-$domainAdminPassword = ConvertTo-SecureString "Rmi9306021998@" -AsPlainText -Force
-$domainAdminCredential = New-Object System.Management.Automation.PSCredential ($domainAdminUsername, $domainAdminPassword)
-
-# Define Safe Mode Administrator Password
-$safeModeAdminPassword = ConvertTo-SecureString "Rmi9306021998@" -AsPlainText -Force
-
-try {
-    # Install AD DS Forest
-    Install-ADDSForest -DomainName "fox.com" `
-                       -DomainNetBiosName "foxdomain" `
-                       -ForestMode "WinThreshold" `
-                       -DomainMode "WinThreshold" `
-                       -SafeModeAdministratorPassword $safeModeAdminPassword `
-                       -DatabasePath "C:\Windows\NTDS" `
-                       -LogPath "C:\Windows\NTDS" `
-                       -SysvolPath "C:\Windows\SYSVOL" `
-                       -NoRebootOnCompletion:$true -Force
-
-    Write-Host "AD DS Forest installed successfully."
-    # Additional configuration steps can be added here
-    # Restart the computer to complete installation
-    Restart-Computer
-} catch {
-    Write-Error "Error installing AD DS Forest: $_"
-}
-
-                   -NoRebootOnCompletion:$true
-
-
-
+# Configure to be a domain controller
+Install-ADDSDomainController `
+    -NoGlobalCatalog:$false `
+    -CreateDnsDelegation:$false `
+    -CriticalReplicationOnly:$false `
+    -DatabasePath "C:\Windows\NTDS" `
+    -DomainName "foxhouse.com" `
+    -InstallDns:$true `
+    -LogPath "C:\Windows\NTDS" `
+    -NoRebootOnCompletion:$false `
+    -SiteName "Default-First-Site-Name" `
+    -SysvolPath "C:\Windows\SYSVOL" `
+    -Force:$true
