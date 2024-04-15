@@ -12,7 +12,7 @@ $domainName = "rosalio-local.com"
 $keyVaultName = "rosalio-keyvault"
 
 # Retrieve Secure Credentials from Azure Key Vault
-$secretName = "adminpassword"
+$secretName = "foxsecret"
 $kvSecret = Get-AzKeyVaultSecret -VaultName $keyVaultName -Name $secretName
 $securePassword = ConvertTo-SecureString -String $kvSecret.SecretValueText -AsPlainText -Force
 
