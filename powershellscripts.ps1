@@ -1,212 +1,35 @@
-#Setup and configuration using Powershell for the Azure Automation Exercise
-
-
-#Create and configure the Virtual Network and Network Security Groups
 # Variables
-$vmNameDC = "foxDC"
-$rgName = "rosalio-onboarding"
-$location = "East US"
-$vnetName = "foxhouseVNet"
-$subnetName = "foxhouseSubnet"
-$nsgName = "foxhouseNSG"
-
-
-# Create and configure the Virtual Network and subnet
-
-$rgName = "rosalio-onboarding"
-$location = "East US"
-$vnetName = "foxhouseVNet"
-$subnetName = "foxhouseSubnet"
-# Create Virtual Network and Subnet
-$subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
-$vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
-$nsgName = "foxhouseNSG"
-$ruleName = "AllowRule4Egress"
-$rule4EgressIP = "65.140.106.2"  #egress IP
-# Create NSG and allow inbound rule for Rule4's egress IP
-$nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
-Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name $ruleName -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
-$nsg | Set-AzNetworkSecurityGroup
-
-
-
-
-
-
-
-
-
-
-#Deploy a windows server vm as the Domain Controller 
-
-#Create the windows VM
- Variables
-$vmNameDC = "foxDC"
-$rgName = "rosalio-onboarding"
-$location = "East US"
-$vnetName = "foxhouseVNet"
-$subnetName = "foxhouseSubnet"
-$nsgName = "foxhouseNSG"
-$vaultName = "foxfly125"  # Replace with your actual Key Vault name
-$secretName = "foxesarecute"  # The secret in the Key Vault
-
-# Create a public IP with static allocation
-$dcPip = New-AzPublicIpAddress -Name "$vmNameDC-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Static
-
-# Fetch or create the virtual network and subnet
-$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName
-if (-not $vnet) {
-    $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16"
-    $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
-    $vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet.AddSubnet($subnetConfig)
-}
-$subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet
-
-# Fetch or create the network security group
-$nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName
-if (-not $nsg) {
-    $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
-    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name "AllowRule4Egress" -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix "65.140.106.2" -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443"
-    $nsg | Set-AzNetworkSecurityGroup
-}
-
-# Create a network interface for the VM
-$dcNic = New-AzNetworkInterface -Name "$vmNameDC-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id -PublicIpAddressId $dcPip.Id -NetworkSecurityGroupId $nsg.Id
-
-# VM configuration for Domain Controller
-$vmConfigDC = New-AzVMConfig -VMName $vmNameDC -VMSize "Standard_DS2_v2"
-$vmConfigDC = Set-AzVMOperatingSystem -VM $vmConfigDC -Windows -ComputerName $vmNameDC -Credential (Get-Credential) -ProvisionVMAgent -EnableAutoUpdate
-$vmConfigDC = Set-AzVMSourceImage -VM $vmConfigDC -PublisherName "MicrosoftWindowsServer" -Offer "WindowsServer" -Skus "2019-Datacenter" -Version "latest"
-$vmConfigDC = Add-AzVMNetworkInterface -VM $vmConfigDC -Id $dcNic.Id
-$vmConfigDC = Set-AzVMOSDisk -VM $vmConfigDC -CreateOption FromImage -DiskSizeInGB 127
-
-# Create the VM
-$vmDC = New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDC
-Write-Host "VM created successfully"
-
-# Fetch the VM to see if it's created and has an identity
-$vm = Get-AzVM -ResourceGroupName $rgName -Name $vmNameDC
-if ($vm -and $vm.Identity) {
-    $vmIdentity = $vm.Identity.PrincipalId
-    Write-Host "VM Identity PrincipalId: $vmIdentity"
-} else {
-    Write-Host "VM Identity not found, cannot set Key Vault access policy"
-    exit
-}
-
-# Set the Key Vault access policy for the Managed Identity 
-Set-AzKeyVaultAccessPolicy -VaultName $vaultName -ObjectId $vmIdentity -PermissionsToSecrets get
-Write-Host "Key Vault access policy set for the Managed Identity"
-
-# Define the URL of the script hosted on GitHub
-$scriptUrl = "https://raw.githubusercontent.com/rosaliomayoI/automationexercise/main/promotetodc.ps1"
-
-# Custom Script Extension to promote to Domain Controller
-Set-AzVMCustomScriptExtension -ResourceGroupName $rgName `
-                              -VMName $vmNameDC `
-                              -Name "PromoteToDC" `
-                              -Location $location `
-                              -FileUri $scriptUrl `
-                              -ArgumentList "-vaultName $vaultName", "-secretName $secretName", "-domainName  foxeslocal.com"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Script to deploy  Django App VM & Variables for Django App VM
-$rgName = "rosalio-onboarding"
-$location = "East US"
-$vmNameDC = "foxDC"
-$vmNameDjango = "djangoVM"
-$vnetName = "foxhouseVNET"
-$subnetName = "foxhouseSubnet"
-$nsgName = "foxhouseNSG"
-$rule4EgressIP = "65.140.106.2"  # IP address to allow through NSG
-
-# Create a public IP with static allocation for the Django VM
-$djangoPip = New-AzPublicIpAddress -Name "$vmNameDjango-pip" -ResourceGroupName $rgName -Location $location -AllocationMethod Static
-
-# Fetch or create the virtual network and subnet
-$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName
-if (-not $vnet) {
-    $vnet = New-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rgName -Location $location -AddressPrefix "10.0.0.0/16"
-    $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
-    $vnet = Set-AzVirtualNetwork -VirtualNetwork $vnet.AddSubnet($subnetConfig)
-}
-$subnet = Get-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet
-
-# Fetch or create the network security group
-$nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName
-if (-not $nsg) {
-    $nsg = New-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rgName -Location $location
-    $nsg = Add-AzNetworkSecurityRuleConfig -NetworkSecurityGroup $nsg -Name "AllowRule4Egress" -Priority 100 -Access Allow -Direction Inbound -Protocol Tcp -SourceAddressPrefix $rule4EgressIP -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "443,8000"
-    $nsg | Set-AzNetworkSecurityGroup
-}
-
-# Create a network interface for the Django VM
-$djangoNic = New-AzNetworkInterface -Name "$vmNameDjango-nic" -ResourceGroupName $rgName -Location $location -SubnetId $subnet.Id -PublicIpAddressId $djangoPip.Id -NetworkSecurityGroupId $nsg.Id
-
-# VM configuration for Django Linux VM
-$vmConfigDjango = New-AzVMConfig -VMName $vmNameDjango -VMSize "Standard_DS2_v2"
-$vmConfigDjango = Set-AzVMOperatingSystem -VM $vmConfigDjango -Linux -ComputerName $vmNameDjango -Credential (Get-Credential)
-$vmConfigDjango = Set-AzVMSourceImage -VM $vmConfigDjango -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "18.04-LTS" -Version "latest"
-$vmConfigDjango = Add-AzVMNetworkInterface -VM $vmConfigDjango -Id $djangoNic.Id
-$vmConfigDjango = Set-AzVMOSDisk -VM $vmConfigDjango -CreateOption FromImage -DiskSizeInGB 127
-
-# Create the Django Linux VM
-$vmDjango = New-AzVM -ResourceGroupName $rgName -Location $location -VM $vmConfigDjango
-
-# Custom script extension to install and configure Django and integrate with Domain Controller
-$customScriptSettings = @{
-    "fileUris" = ["https://raw.githubusercontent.com/rosaliomayoI/automationexercise/main/djangoapp.sh"]
-    "commandToExecute" = "bash djangoapp.sh"
-}
-
-Set-AzVMCustomScriptExtension -ResourceGroupName $rgName -VMName $vmNameDjango -Name "setupDjangoADIntegration" -Location $location -Setting $customScriptSettings
-
-
-
-
-
-
-# Create a Key Vault
-# Variables
-$rgName = "rosalio-onboarding"  #resource group name
-$location = "East US"  #location
-$vaultName = "foxkeyvault777"  # Name for the Key Vault
-$secretName = "foxesarecute"  # Name of the secret to store
-$secretValue = "YourSecretPassword"  # The password or secret value you want to store
-
-# Create or check for existing resource group
-$resourceGroup = Get-AzResourceGroup -Name $rgName -ErrorAction SilentlyContinue
-if (-not $resourceGroup) {
-    New-AzResourceGroup -Name $rgName -Location $location
-}
-
-# Create the Key Vault
-$vault = New-AzKeyVault -Name $vaultName -ResourceGroupName $rgName -Location $location -Sku Standard
-
-# Store a secret in the Key Vault
-$secureSecretValue = ConvertTo-SecureString $secretValue -AsPlainText -Force
-Set-AzKeyVaultSecret -VaultName $vaultName -Name $secretName -SecretValue $secureSecretValue
-
-# Output the details of the created Key Vault
-Write-Output "Key Vault '$vaultName' created in resource group '$rgName'."
-Write-Output "Secret '$secretName' added to Key Vault '$vaultName'."
-
-
-
+$resourceGroupName = 'rosalio-onboarding'
+$location = 'East US'
+$vmName = 'DCVM'
+$vmSize = 'Standard_DS1_v2'
+$vnetName = 'vnet01'
+$subnetName = 'subnet01'
+$publicIpAddressName = 'DCPublicIP'
+$networkSecurityGroupName = 'DCNSG'
+$adminUsername = 'fox'
+$adminPassword = 'Rmi9306021998@'
+$dcScriptUrl = 'https://raw.githubusercontent.com/rosaliomayoI/automationexercise/main/promotetodc.ps1'
+$subscriptionId = '62dbf7f9-1f0d-419d-9ac1-64330a42a648'  # Your actual subscription ID
+
+# Create a public IP address
+$pip = New-AzPublicIpAddress -Name $publicIpAddressName -ResourceGroupName $resourceGroupName -Location $location -AllocationMethod Static
+
+# Create a network security group with the valid IP address for RDP
+$nsgRuleRDP = New-AzNetworkSecurityRuleConfig -Name 'DefaultAllowRDP' -Protocol Tcp -Direction Inbound -Priority 1000 -SourceAddressPrefix '65.140.106.2' -SourcePortRange '*' -DestinationAddressPrefix '*' -DestinationPortRange 3389 -Access Allow
+$nsg = New-AzNetworkSecurityGroup -ResourceGroupName $resourceGroupName -Location $location -Name $networkSecurityGroupName -SecurityRules $nsgRuleRDP
+
+# Create a virtual network card and associate with public IP address and NSG
+$nic = New-AzNetworkInterface -Name "$vmName-NIC" -ResourceGroupName $resourceGroupName -Location $location -SubnetId "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.Network/virtualNetworks/$vnetName/subnets/$subnetName" -PublicIpAddressId $pip.Id -NetworkSecurityGroupId $nsg.Id
+
+# Create a virtual machine configuration
+$vmConfig = New-AzVMConfig -VMName $vmName -VMSize $vmSize |
+            Set-AzVMOperatingSystem -Windows -ComputerName $vmName -Credential (Get-Credential) |
+            Set-AzVMSourceImage -PublisherName 'MicrosoftWindowsServer' -Offer 'WindowsServer' -Skus '2016-Datacenter' -Version 'latest' |
+            Add-AzVMNetworkInterface -Id $nic.Id
+
+# Create the virtual machine
+$vm = New-AzVM -ResourceGroupName $resourceGroupName -Location $location -VM $vmConfig
+
+# Apply the Custom Script Extension to run the domain controller promotion script
+Set-AzVMCustomScriptExtension -ResourceGroupName $resourceGroupName -VMName $vmName -Location $location -Name "SetupDomainController" -FileUri $dcScriptUrl -Run "promotetodc.ps1"
