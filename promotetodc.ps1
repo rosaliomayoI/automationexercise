@@ -2,7 +2,7 @@
 Import-Module ADDSDeployment
 
 # Define domain administrator credentials
-$domainAdminUsername = "Administrator"
+$domainAdminUsername = "fox"
 $domainAdminPassword = ConvertTo-SecureString "Rmi9306021998@" -AsPlainText -Force
 $domainAdminCredential = New-Object System.Management.Automation.PSCredential ($domainAdminUsername, $domainAdminPassword)
 
