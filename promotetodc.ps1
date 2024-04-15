@@ -10,8 +10,8 @@ $domainAdminCredential = New-Object System.Management.Automation.PSCredential ($
 $safeModeAdminPassword = ConvertTo-SecureString "Rmi9306021998@" -AsPlainText -Force
 
 # Install AD DS Forest
-Install-ADDSForest -DomainName "mydomain.com" `
-                   -DomainNetBiosName "MYDOMAIN" `
+Install-ADDSForest -DomainName "fox.com" `
+                   -DomainNetBiosName "foxdomain" `
                    -ForestMode "WinThreshold" `
                    -DomainMode "WinThreshold" `
                    -SafeModeAdministratorPassword $safeModeAdminPassword `
