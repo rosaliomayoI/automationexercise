@@ -1,54 +1,30 @@
 #!/bin/bash
-
-# Update package lists
+# Update System
 sudo apt-get update
+sudo apt-get upgrade -y
 
-# Install required packages
-sudo apt-get install -y python3 python3-pip apache2
+# Install Python and Pip
+sudo apt-get install python3-pip python3-dev libpq-dev -y
 
-# Install mod_wsgi
-sudo apt-get install -y libapache2-mod-wsgi-py3
+# Install Virtualenv
+sudo pip3 install virtualenv
 
-# Install Django using pip3
-sudo pip3 install django
+# Create a Virtual Environment and Activate It
+virtualenv djangovenv
+source djangovenv/bin/activate
 
-# Setup a Django project (modify 'myproject' to your desired project name)
-cd /var/www
-sudo django-admin startproject myproject
+# Install Django
+pip install django
+
+# Create a new Django project
+django-admin startproject myproject
+
+# Change to the project directory
 cd myproject
 
-# Adjust permissions to allow Apache to access the project files
-sudo chown -R www-data:www-data /var/www/myproject
+# Run Django migrations to initialize your environment
+python manage.py migrate
 
-# Prepare Apache to serve the Django application
-sudo tee /etc/apache2/sites-available/myproject.conf > /dev/null <<EOF
-<VirtualHost *:80>
-    ServerAdmin webmaster@localhost
-    DocumentRoot /var/www/myproject
-    ErrorLog \${APACHE_LOG_DIR}/error.log
-    CustomLog \${APACHE_LOG_DIR}/access.log combined
-
-    Alias /static /var/www/myproject/static
-    <Directory /var/www/myproject/static>
-        Require all granted
-    </Directory>
-
-    <Directory /var/www/myproject/myproject>
-        <Files wsgi.py>
-            Require all granted
-        </Files>
-    </Directory>
-
-    WSGIDaemonProcess myproject python-path=/var/www/myproject python-home=/var/www/myproject
-    WSGIProcessGroup myproject
-    WSGIScriptAlias / /var/www/myproject/myproject/wsgi.py
-</VirtualHost>
-EOF
-
-# Enable the new site and disable the default site
-sudo a2ensite myproject
-sudo a2dissite 000-default
-
-# Reload Apache to apply changes
-sudo systemctl reload apache2
+# OPTIONAL: Setup Django to run on startup
+echo "@reboot root /home/$USER/djangovenv/bin/python /home/$USER/myproject/manage.py runserver 0.0.0.0:8000" | sudo tee -a /etc/crontab > /dev/null
 
