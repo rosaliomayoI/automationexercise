@@ -2,7 +2,7 @@
 #Windows domain VM
 # Variables
 $resourceGroupName = "rosalio-onboarding"
-$location = "East US"foc
+$location = "East US"
 $vmName = "WinDC"
 $vnetName = "vnet01"
 $subnetName = "subnet01"
