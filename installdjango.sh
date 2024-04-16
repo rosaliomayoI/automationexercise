@@ -4,7 +4,7 @@
 # Update and upgrade the system
 sudo apt-get update && sudo apt-get upgrade -y
 
-# Install Python3, pip, and other necessary packages
+# Install Python3
 sudo apt-get install -y python3 python3-pip python3-venv
 
 # Set up a virtual environment for the Django project
