@@ -11,8 +11,6 @@ if (-not(Get-Module -Name Az -ListAvailable)) {
 }
 Import-Module Az
 
-# Connect to Azure account
-Connect-AzAccount -UseDeviceAuthentication
 
 # Create or verify resource group
 $resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
