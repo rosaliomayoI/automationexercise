@@ -1,5 +1,5 @@
 param(
-    [string]$resourceGroupName = "rosalio-onboarding",
+    [string]$resourceGroupName = " ",
     [string]$location = "East US",
     [string]$adminUsername = "adminuser",
     [string]$adminPassword = "ComplexPassword!123"
