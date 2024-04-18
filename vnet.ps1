@@ -5,7 +5,7 @@ $virtualNetwork = New-AzVirtualNetwork `
   -Name "vnet01" `
   -AddressPrefix "10.0.0.0/16"
 
-# Add a Subnet
+#Add a Subnet
 $subnetConfig = Add-AzVirtualNetworkSubnetConfig `
   -Name "subnet01" `
   -AddressPrefix "10.0.0.0/24" `
